@@ -37,23 +37,33 @@ export const handler: APIGatewayProxyHandler = async (event: any = {}): Promise<
   try {
     const { id, name, grade } = JSON.parse(event.body) as IPayload;
 
-    await dbClient.put({
-      TableName: 'dbCertificates',
-      Item: {
-        id,
-        name,
-        grade,
-        createdAt: new Date().toISOString()
-      }
-    }).promise();
-
-    const certificate = await dbClient.query({
+    let certificate = await dbClient.query({
       TableName: 'dbCertificates',
       KeyConditionExpression: 'id = :id',
       ExpressionAttributeValues: {
         ':id': id
       }
     }).promise();
+
+    if (certificate.Count === 0) {
+      await dbClient.put({
+        TableName: 'dbCertificates',
+        Item: {
+          id,
+          name,
+          grade,
+          createdAt: new Date().toISOString()
+        }
+      }).promise();
+
+      certificate = await dbClient.query({
+        TableName: 'dbCertificates',
+        KeyConditionExpression: 'id = :id',
+        ExpressionAttributeValues: {
+          ':id': id
+        }
+      }).promise();
+    }
 
     const formattedDate = new Date(certificate.Items[0].createdAt).toLocaleDateString('en-GB', {
       day: 'numeric',
