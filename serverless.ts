@@ -11,6 +11,7 @@ const serverlessConfiguration: AWS = {
   provider: {
     name: 'aws',
     runtime: 'nodejs14.x',
+    region: "eu-west-1",
     apiGateway: {
       minimumCompressionSize: 1024,
       shouldStartNameWithService: true,
@@ -19,6 +20,15 @@ const serverlessConfiguration: AWS = {
       AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
       NODE_OPTIONS: '--enable-source-maps --stack-trace-limit=1000',
     },
+    iamRoleStatements: [
+      {
+        Effect: 'Allow',
+        Action: [
+          'dynamodb:*',
+        ],
+        Resource: 'arn:aws:dynamodb:*'
+      }
+    ]
   },
   // import the function via paths
   functions: { 
@@ -74,7 +84,6 @@ const serverlessConfiguration: AWS = {
               KeyType: 'HASH',
             },
           ],
-          BillingMode: 'PAY_PER_REQUEST',
           ProvisionedThroughput: {
             ReadCapacityUnits: 5,
             WriteCapacityUnits: 5,
