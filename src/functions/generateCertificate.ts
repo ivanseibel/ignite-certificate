@@ -3,6 +3,7 @@ import { dbClient } from "../db/dynamodbClient";
 import * as handlebars from "handlebars";
 import * as path from "path";
 import { readFileSync } from "fs";
+import chromium from 'chrome-aws-lambda';
 
 interface IPayload {
   id: string;
@@ -17,13 +18,14 @@ interface ITemplate  extends IPayload {
 
 
 const compileTemplate = (data: ITemplate) => {
-  const { name, grade, date, medal } = data;
+  const { id, name, grade, date, medal } = data;
 
   const filePath = path.join(process.cwd(), "src", "templates", "certificate.hbs");
 
   const html = readFileSync(filePath, "utf-8");
 
   return handlebars.compile(html)({
+    id,
     name,
     grade,
     date,
@@ -53,7 +55,6 @@ export const handler: APIGatewayProxyHandler = async (event: any = {}): Promise<
       }
     }).promise();
 
-    // Format date to yyyy/mm/dd European format
     const formattedDate = new Date(certificate.Items[0].createdAt).toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'long',
@@ -70,6 +71,26 @@ export const handler: APIGatewayProxyHandler = async (event: any = {}): Promise<
       date: formattedDate,
       medal
     });
+
+    const browser = await chromium.puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath,
+    });
+
+    const page = await browser.newPage();
+
+    await page.setContent(compiledCertificate);
+
+    const pdf = await page.pdf({
+      format: 'a4',
+      landscape: true,
+      path: process.env.IS_OFFLINE ? 'certificate.pdf' : null,
+      printBackground: true,
+      preferCSSPageSize: true
+    });
+
+    await browser.close();
 
     const response = certificate.Items.length > 0 ? certificate.Items[0] : {};
 
