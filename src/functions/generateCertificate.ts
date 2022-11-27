@@ -4,6 +4,7 @@ import * as handlebars from "handlebars";
 import * as path from "path";
 import { readFileSync } from "fs";
 import chromium from 'chrome-aws-lambda';
+import { S3 } from 'aws-sdk';
 
 interface IPayload {
   id: string;
@@ -15,7 +16,6 @@ interface ITemplate  extends IPayload {
   date: string;
   medal: string;
 }
-
 
 const compileTemplate = (data: ITemplate) => {
   const { id, name, grade, date, medal } = data;
@@ -37,23 +37,33 @@ export const handler: APIGatewayProxyHandler = async (event: any = {}): Promise<
   try {
     const { id, name, grade } = JSON.parse(event.body) as IPayload;
 
-    await dbClient.put({
-      TableName: 'dbCertificates',
-      Item: {
-        id,
-        name,
-        grade,
-        createdAt: new Date().toISOString()
-      }
-    }).promise();
-
-    const certificate = await dbClient.query({
+    let certificate = await dbClient.query({
       TableName: 'dbCertificates',
       KeyConditionExpression: 'id = :id',
       ExpressionAttributeValues: {
         ':id': id
       }
     }).promise();
+
+    if (certificate.Count === 0) {
+      await dbClient.put({
+        TableName: 'dbCertificates',
+        Item: {
+          id,
+          name,
+          grade,
+          createdAt: new Date().toISOString()
+        }
+      }).promise();
+
+      certificate = await dbClient.query({
+        TableName: 'dbCertificates',
+        KeyConditionExpression: 'id = :id',
+        ExpressionAttributeValues: {
+          ':id': id
+        }
+      }).promise();
+    }
 
     const formattedDate = new Date(certificate.Items[0].createdAt).toLocaleDateString('en-GB', {
       day: 'numeric',
@@ -92,11 +102,24 @@ export const handler: APIGatewayProxyHandler = async (event: any = {}): Promise<
 
     await browser.close();
 
+    const s3 = new S3();
+
+    await s3.putObject({
+      Bucket: 'bucket-certificate-files-2c42e5cf1cdbafea04ed267018ef1511',
+      Key: `${id}.pdf`,
+      ACL: 'public-read',
+      Body: pdf,
+      ContentType: 'application/pdf'
+    }).promise();
+
     const response = certificate.Items.length > 0 ? certificate.Items[0] : {};
 
     return {
       statusCode: 201,
-      body: JSON.stringify(response),
+      body: JSON.stringify({
+        ...response,
+        url: `https://bucket-certificate-files-2c42e5cf1cdbafea04ed267018ef1511.s3.amazonaws.com/${id}.pdf`
+      }),
     };
   } catch (error) {
     return {

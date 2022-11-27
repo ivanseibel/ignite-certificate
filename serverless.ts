@@ -27,6 +27,13 @@ const serverlessConfiguration: AWS = {
           'dynamodb:*',
         ],
         Resource: 'arn:aws:dynamodb:*'
+      },
+      {
+        Effect: 'Allow',
+        Action: [
+          's3:*',
+        ],
+        Resource: 'arn:aws:s3:::bucket-certificate-files-2c42e5cf1cdbafea04ed267018ef1511/*'
       }
     ]
   },
@@ -34,6 +41,7 @@ const serverlessConfiguration: AWS = {
   functions: { 
     generateCertificate: { 
       handler: 'src/functions/generateCertificate.handler',
+      timeout: 30,
       events: [
         {
           http: {
@@ -45,7 +53,12 @@ const serverlessConfiguration: AWS = {
       ],
     } 
   },
-  package: { individually: true },
+  package: { 
+    individually: true,
+    patterns: [
+      'src/templates/*'
+    ]
+  },
   custom: {
     esbuild: {
       bundle: true,
@@ -88,6 +101,21 @@ const serverlessConfiguration: AWS = {
           ProvisionedThroughput: {
             ReadCapacityUnits: 5,
             WriteCapacityUnits: 5,
+          },
+        },
+      },
+      bucketCertificateFiles: {
+        Type: 'AWS::S3::Bucket',
+        Properties: {
+          BucketName: 'bucket-certificate-files-2c42e5cf1cdbafea04ed267018ef1511',
+          CorsConfiguration: {
+            CorsRules: [
+              {
+                AllowedHeaders: ['*'],
+                AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE'],
+                AllowedOrigins: ['*'],
+              },
+            ],
           },
         },
       },
